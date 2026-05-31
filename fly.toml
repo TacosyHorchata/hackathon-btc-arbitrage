@@ -1,0 +1,18 @@
+# Fly.io config for the BTC Arbitrage Simulator (Coding Challenge Mexico).
+# Standalone app; does not touch any other app on the account.
+app = "hackathon-btc-arb"
+primary_region = "dfw"   # Dallas - closest active region to Mexico (qro deprecated)
+
+[build]
+  dockerfile = "Dockerfile"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "suspend"   # idle -> suspend (no cost when unused)
+  auto_start_machines = true       # wake on request
+  min_machines_running = 0
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"                  # stdlib app, tiny footprint
