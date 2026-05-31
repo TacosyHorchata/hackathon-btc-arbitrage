@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.pedro.hackathonbtc.paper-trade-monitor</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/bin/python3</string>
+    <string>-u</string>
+    <string>/Users/pedrorios/Library/Application Support/hackathon-btc/profit_paper_trade_monitor.py</string>
+    <string>--out-dir</string>
+    <string>/Users/pedrorios/Library/Application Support/hackathon-btc/paper_trades</string>
+    <string>--interval-sec</string>
+    <string>10</string>
+    <string>--min-age-sec</string>
+    <string>5</string>
+    <string>--max-age-sec</string>
+    <string>7200</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>/Users/pedrorios/Library/Application Support/hackathon-btc</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PAPER_TRADE_WORKERS</key>
+    <string>6</string>
+    <key>PAPER_TRADE_LIMIT_PER_SOURCE</key>
+    <string>20</string>
+    <key>PAPER_TRADE_MIN_NET_BPS</key>
+    <string>1</string>
+    <key>PAPER_TRADE_LATENCY_BPS</key>
+    <string>2</string>
+    <key>PAPER_TRADE_INVENTORY_CONFIG</key>
+    <string>/Users/pedrorios/Library/Application Support/hackathon-btc/inventory.json</string>
+    <key>PAPER_TRADE_REQUIRE_INVENTORY</key>
+    <string>false</string>
+  </dict>
+
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+
+  <key>StandardOutPath</key>
+  <string>/Users/pedrorios/Library/Logs/hackathon-btc/paper_trade_monitor.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/pedrorios/Library/Logs/hackathon-btc/paper_trade_monitor.err.log</string>
+</dict>
+</plist>

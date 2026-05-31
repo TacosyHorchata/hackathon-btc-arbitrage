@@ -1,0 +1,18 @@
+{
+  "balances": {
+    "binanceus": {
+      "USD": "5000",
+      "BTC": "0"
+    },
+    "bitfinex": {
+      "BTC": "0.07",
+      "USD": "0"
+    },
+    "ascendex": {
+      "USDT": "500"
+    },
+    "kucoin": {
+      "ULTIMA": "1"
+    }
+  }
+}

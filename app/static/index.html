@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BTC Arbitrage Simulator</title>
+<link rel="icon" href="data:image/svg+xml,&lt;svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'&gt;&lt;text y='.9em' font-size='90'&gt;&#8383;&lt;/text&gt;&lt;/svg&gt;">
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<header>
+  <h1>BTC Arbitrage Simulator <span class="sub">Coding Challenge Mexico</span></h1>
+  <div class="scen" id="scen">
+    <button data-s="live" class="on">LIVE</button>
+    <button data-s="zerofee">ZERO-FEE</button>
+    <button data-s="stress">STRESS</button>
+  </div>
+  <span class="badge" id="scenBadge" style="display:none">SIMULATED DISLOCATION</span>
+  <div class="spacer"></div>
+  <div class="stat"><span class="k">Venues</span><span class="v" id="venues">-/-</span></div>
+  <div class="stat"><span class="k">Cycles</span><span class="v" id="cycles">-</span></div>
+  <div class="stat"><span class="k">Trades</span><span class="v" id="ntrades">-</span></div>
+  <div class="stat"><span class="k">Realized P&amp;L</span><span class="v num" id="pnl">$0.00</span></div>
+  <button class="gear" id="gear" title="Engine config">&#9881; config</button>
+</header>
+
+<main>
+  <!-- left: feeds + wallets -->
+  <div class="col">
+    <div class="panel">
+      <h2>Live Order Books <span class="cnt" id="feedAge"></span></h2>
+      <table>
+        <thead><tr><th>Venue</th><th>Lane</th><th class="r">Bid</th><th class="r">Ask</th><th class="r">Spd</th></tr></thead>
+        <tbody id="feeds"></tbody>
+      </table>
+      <p class="note">USD and USDT are separate lanes; routes only compare venues within the same lane (no implicit basis).</p>
+    </div>
+    <div class="panel" style="flex:1">
+      <h2>Wallets / Inventory <span class="cnt">prefunded per venue</span></h2>
+      <div id="wallets"></div>
+      <p class="note">Each venue starts with 50,000 quote + 0.5 BTC. Watch inventory drift: buying drains quote on one venue and base on the other &mdash; the rebalancing constraint.</p>
+    </div>
+  </div>
+
+  <!-- center: pnl + opportunities -->
+  <div class="col">
+    <div class="panel" id="pnlWrap">
+      <h2>Equity &amp; Realized P&amp;L</h2>
+      <div class="pnlhead">
+        <div class="stat"><span class="k">Equity (mark-to-market)</span><span class="v num" id="equity">-</span></div>
+        <div class="stat"><span class="k">Realized</span><span class="v num" id="realized">-</span></div>
+        <div class="stat"><span class="k">Uptime</span><span class="v num" id="uptime">-</span></div>
+      </div>
+      <canvas id="pnl" width="900" height="160"></canvas>
+    </div>
+    <div class="panel" style="flex:1">
+      <h2>Opportunities <span class="cnt" id="oppcnt"></span></h2>
+      <div class="filters" id="filters">
+        <button data-f="all" class="on">All</button>
+        <button data-f="ENTER_SIM">Accepted</button>
+        <button data-f="rej">Rejected</button>
+      </div>
+      <table>
+        <thead><tr><th>Route</th><th>Lane</th><th class="r">Gross</th><th class="r">Net bps</th><th class="r">P&amp;L</th><th>Decision</th></tr></thead>
+        <tbody id="opps"></tbody>
+      </table>
+      <p class="note">Click any row for the decision inspector (depth waterfall + why accepted/rejected).</p>
+    </div>
+  </div>
+
+  <!-- right: trades + states -->
+  <div class="col">
+    <div class="panel">
+      <h2>Decision States <span class="cnt">this session</span></h2>
+      <div id="states"></div>
+    </div>
+    <div class="panel" style="flex:1">
+      <h2>Simulated Trades <span class="cnt" id="tradecnt"></span></h2>
+      <table>
+        <thead><tr><th>Route</th><th class="r">Size$</th><th class="r">Net bps</th><th class="r">P&amp;L</th></tr></thead>
+        <tbody id="trades"></tbody>
+      </table>
+    </div>
+  </div>
+</main>
+
+<!-- decision inspector drawer -->
+<div class="overlay" id="overlay"></div>
+<div class="drawer" id="drawer">
+  <button class="close" id="close">&times;</button>
+  <div id="drawerBody"></div>
+</div>
+
+<!-- config drawer -->
+<div class="drawer" id="cfgDrawer">
+  <button class="close" id="cfgClose">&times;</button>
+  <h3>Engine Configuration</h3>
+  <p class="note">Sensitivity knobs. Changes apply on the next scan cycle.</p>
+  <div id="cfgBody"></div>
+  <button class="btn" id="cfgApply" style="margin-top:12px">Apply</button>
+</div>
+
+<script src="/app.js"></script>
+</body>
+</html>

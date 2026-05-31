@@ -1,0 +1,22 @@
+# secrets
+.env
+.env.local
+# runtime db
+app/sim.sqlite
+data/
+# rust build
+target/
+# tooling
+.claude/
+.codex/
+.playwright-mcp/
+*.png
+__pycache__/
+*.pyc
+# stray research artifacts
+*.json
+!config/*.json
+!app/static/*.json
+bybit_*.txt
+the=*
+analyze.py

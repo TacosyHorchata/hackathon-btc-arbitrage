@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.pedro.hackathonbtc.btc-hot-path</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/bin/python3</string>
+    <string>-u</string>
+    <string>/Users/pedrorios/Library/Application Support/hackathon-btc/btc_hot_path_monitor.py</string>
+    <string>--out-dir</string>
+    <string>/Users/pedrorios/Library/Application Support/hackathon-btc/btc_hot_path</string>
+    <string>--interval-sec</string>
+    <string>5</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>/Users/pedrorios/Library/Application Support/hackathon-btc</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>BTC_HOT_WORKERS</key>
+    <string>20</string>
+    <key>BTC_HOT_MAX_CANDIDATES</key>
+    <string>30</string>
+    <key>BTC_HOT_MIN_TOP_NET_BPS</key>
+    <string>1</string>
+    <key>BTC_HOT_MIN_DEPTH_NET_BPS</key>
+    <string>1</string>
+    <key>BTC_HOT_LATENCY_BPS</key>
+    <string>2</string>
+  </dict>
+
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+
+  <key>StandardOutPath</key>
+  <string>/Users/pedrorios/Library/Logs/hackathon-btc/btc_hot_path.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/pedrorios/Library/Logs/hackathon-btc/btc_hot_path.err.log</string>
+</dict>
+</plist>

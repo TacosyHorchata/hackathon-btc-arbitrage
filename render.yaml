@@ -1,0 +1,12 @@
+# One-click deploy to Render (https://render.com).
+# Free Python web service, no build deps (stdlib only).
+services:
+  - type: web
+    name: btc-arbitrage-simulator
+    runtime: python
+    plan: free
+    buildCommand: ""           # nothing to build; stdlib only
+    startCommand: python app/server.py
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.6"

@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.pedro.hackathonbtc.profit-monitor</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/bin/python3</string>
+    <string>-u</string>
+    <string>/Users/pedrorios/Library/Application Support/hackathon-btc/profit_monitor.py</string>
+    <string>--out-dir</string>
+    <string>/Users/pedrorios/Library/Application Support/hackathon-btc/live</string>
+    <string>--interval-sec</string>
+    <string>30</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>/Users/pedrorios/Library/Application Support/hackathon-btc</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PROFIT_MONITOR_COINBASE_MARKET_LIMIT</key>
+    <string>80</string>
+    <key>PROFIT_MONITOR_FETCH_WORKERS</key>
+    <string>10</string>
+    <key>PROFIT_MONITOR_DEPTH_WORKERS</key>
+    <string>8</string>
+    <key>PROFIT_MONITOR_MAX_CANDIDATES</key>
+    <string>60</string>
+    <key>PROFIT_MONITOR_COINBASE_WORKERS</key>
+    <string>10</string>
+    <key>PROFIT_MONITOR_BITSO_WORKERS</key>
+    <string>10</string>
+    <key>PROFIT_MONITOR_GEMINI_WORKERS</key>
+    <string>12</string>
+    <key>PROFIT_MONITOR_KRAKEN_WORKERS</key>
+    <string>4</string>
+    <key>PROFIT_MONITOR_KRAKEN_CHUNK_SIZE</key>
+    <string>120</string>
+    <key>PROFIT_MONITOR_UPBIT_WORKERS</key>
+    <string>3</string>
+    <key>PROFIT_MONITOR_UPBIT_CHUNK_SIZE</key>
+    <string>120</string>
+    <key>PROFIT_MONITOR_BUDA_WORKERS</key>
+    <string>6</string>
+    <key>PROFIT_MONITOR_FOXBIT_WORKERS</key>
+    <string>8</string>
+    <key>PROFIT_MONITOR_MERCADOBITCOIN_WORKERS</key>
+    <string>4</string>
+    <key>PROFIT_MONITOR_MERCADOBITCOIN_CHUNK_SIZE</key>
+    <string>80</string>
+    <key>PROFIT_MONITOR_BITFLYER_WORKERS</key>
+    <string>6</string>
+    <key>PROFIT_MONITOR_INDEPENDENTRESERVE_WORKERS</key>
+    <string>8</string>
+    <key>PROFIT_MONITOR_BTCMARKETS_WORKERS</key>
+    <string>8</string>
+    <key>PROFIT_MONITOR_BITOPRO_WORKERS</key>
+    <string>8</string>
+    <key>PROFIT_MONITOR_HASHKEY_WORKERS</key>
+    <string>8</string>
+    <key>PROFIT_MONITOR_BACKPACK_WORKERS</key>
+    <string>10</string>
+  </dict>
+
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+
+  <key>StandardOutPath</key>
+  <string>/Users/pedrorios/Library/Logs/hackathon-btc/profit_monitor.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/pedrorios/Library/Logs/hackathon-btc/profit_monitor.err.log</string>
+</dict>
+</plist>

@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.pedro.hackathonbtc.signal-monitor</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/bin/python3</string>
+    <string>-u</string>
+    <string>/Users/pedrorios/Library/Application Support/hackathon-btc/profit_signal_monitor.py</string>
+    <string>--out-dir</string>
+    <string>/Users/pedrorios/Library/Application Support/hackathon-btc/signals</string>
+    <string>--interval-sec</string>
+    <string>60</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>/Users/pedrorios/Library/Application Support/hackathon-btc</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>SIGNAL_MONITOR_LOOKBACK_MIN</key>
+    <string>120</string>
+    <key>SIGNAL_MONITOR_MIN_SEEN</key>
+    <string>3</string>
+    <key>SIGNAL_MONITOR_MIN_DURATION_SEC</key>
+    <string>60</string>
+    <key>SIGNAL_MONITOR_MIN_MAX_NET_BPS</key>
+    <string>3</string>
+    <key>SIGNAL_MONITOR_MIN_LAST_NET_BPS</key>
+    <string>1</string>
+    <key>SIGNAL_MONITOR_DEDUPE_WINDOW_SEC</key>
+    <string>300</string>
+    <key>SIGNAL_MONITOR_INVENTORY_CONFIG</key>
+    <string>/Users/pedrorios/Library/Application Support/hackathon-btc/inventory.json</string>
+    <key>SIGNAL_MONITOR_REQUIRE_INVENTORY</key>
+    <string>false</string>
+  </dict>
+
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+
+  <key>StandardOutPath</key>
+  <string>/Users/pedrorios/Library/Logs/hackathon-btc/signal_monitor.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/pedrorios/Library/Logs/hackathon-btc/signal_monitor.err.log</string>
+</dict>
+</plist>

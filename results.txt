@@ -1,0 +1,65 @@
+=== BINANCE USD-M top positive funding (alts only) ===
+BASE            fr8h%    APR%  spot   flag
+H              0.0865    94.7    NO       
+ARM            0.0824    90.3    NO  STOCK
+ESPORTS        0.0737    80.8    NO       
+POWER          0.0700    76.6    NO       
+币安人生           0.0658    72.1   YES       
+MAGMA          0.0601    65.8    NO       
+GUA            0.0528    57.8    NO       
+我踏马来了          0.0448    49.0    NO       
+DRAM           0.0421    46.1    NO       
+BR             0.0379    41.5    NO       
+IN             0.0355    38.9    NO       
+FOLKS          0.0347    38.0    NO       
+BSB            0.0343    37.6    NO       
+STAR           0.0332    36.4    NO       
+ALCH           0.0295    32.3    NO       
+RAVE           0.0239    26.2    NO       
+CLO            0.0175    19.1    NO       
+HANA           0.0163    17.9    NO       
+EDGE           0.0160    17.5    NO       
+RIVER          0.0148    16.2    NO       
+JELLYJELLY     0.0147    16.0    NO       
+ARC            0.0132    14.4    NO       
+PIEVERSE       0.0129    14.1    NO       
+M              0.0125    13.7    NO       
+LYN            0.0114    12.5    NO       
+BEAT           0.0109    11.9    NO       
+LIGHT          0.0107    11.7    NO       
+MYX            0.0101    11.1    NO       
+BRKB           0.0100    11.0    NO  STOCK
+WOO            0.0100    11.0   YES       
+
+=== BYBIT linear top positive funding (alts only) ===
+BASE            fr8h%    APR%  perpV$M  spot?  spotV$M   flag
+BMNR           0.5248   574.7     0.01     NO     0.00  STOCK
+ARM            0.3237   354.4     1.06     NO     0.00  STOCK
+LLY            0.2467   270.1     0.16     NO     0.00  STOCK
+ASP            0.1461   160.0     0.04     NO     0.00  STOCK
+SKYAI1         0.1401   153.4    19.80     NO     0.00       
+POWER          0.1294   141.7     1.18     NO     0.00       
+DRAM           0.1152   126.2     0.76     NO     0.00       
+IN             0.0796    87.1     4.71     NO     0.00       
+CROSS          0.0784    85.8     0.68     NO     0.00       
+EVAA           0.0760    83.2     0.16     NO     0.00       
+RAVE           0.0704    77.1     4.45     NO     0.00       
+MBOX           0.0670    73.4     1.03    YES     0.16       
+XION           0.0640    70.1     0.44    YES     0.12       
+ESPORTS        0.0443    48.5     8.43     NO     0.00       
+TSM            0.0442    48.5     0.05     NO     0.00  STOCK
+SOSO           0.0383    42.0     0.56    YES     0.36  STOCK
+BZ             0.0366    40.1     0.16     NO     0.00  STOCK
+INTC           0.0332    36.4     0.63     NO     0.00  STOCK
+XPIN           0.0316    34.6     0.39     NO     0.00       
+TRUST          0.0303    33.2     0.16     NO     0.00  STOCK
+Q              0.0285    31.2     0.37     NO     0.00  STOCK
+CL             0.0285    31.2     6.44     NO     0.00       
+CVX            0.0281    30.8     0.40     NO     0.00  STOCK
+NOM            0.0269    29.5     3.81    YES     0.48  STOCK
+IOTX           0.0258    28.2     0.48     NO     0.00       
+SOXL           0.0245    26.8     0.81     NO     0.00  STOCK
+BSB            0.0203    22.2    25.58    YES    12.17       
+TSTBSC         0.0193    21.1     0.91     NO     0.00       
+HIGH           0.0181    19.9     2.47     NO     0.00       
+4              0.0146    16.0     1.04     NO     0.00       
