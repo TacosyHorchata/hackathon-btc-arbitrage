@@ -285,6 +285,10 @@ class Engine:
             id INTEGER PRIMARY KEY, ts_ms INTEGER, lane TEXT, buy_venue TEXT,
             sell_venue TEXT, notional REAL, base_size REAL, buy_vwap REAL,
             sell_vwap REAL, net_profit REAL, net_bps REAL, fees REAL)""")
+        # Demo state is session-local. Clearing avoids stale persisted rows from a
+        # previous container image colliding with fresh in-memory IDs on restart.
+        c.execute("DELETE FROM opportunities")
+        c.execute("DELETE FROM trades")
         c.commit()
         c.close()
 

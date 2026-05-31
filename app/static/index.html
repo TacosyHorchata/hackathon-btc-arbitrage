@@ -25,6 +25,19 @@
 </header>
 
 <main>
+  <section class="signal">
+    <div>
+      <h2>Edge filter: reject fake arbitrage before it hits P&amp;L</h2>
+      <p>Real public books, depth-aware VWAP, taker fees, latency haircut, stale-book checks, and inventory caps. Every accept or reject has an inspectable decision trail.</p>
+    </div>
+    <div class="signalStats">
+      <div><span class="k">Live venues</span><span class="v" id="sigVenues">-/-</span></div>
+      <div><span class="k">Routes tested</span><span class="v" id="sigRoutes">-</span></div>
+      <div><span class="k">Rejected</span><span class="v amber" id="sigRejected">-</span></div>
+      <div><span class="k">Accepted</span><span class="v pos" id="sigAccepted">-</span></div>
+    </div>
+  </section>
+
   <!-- left: feeds + wallets -->
   <div class="col">
     <div class="panel">

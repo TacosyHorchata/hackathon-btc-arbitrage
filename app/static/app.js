@@ -35,6 +35,9 @@ async function tick(){
 
 function renderHeader(st){
   $("#venues").textContent = st.venues_online+"/"+st.venues_total;
+  $("#sigVenues").textContent = st.venues_online+"/"+st.venues_total;
+  $("#sigRoutes").textContent = (st.opps_total||0).toLocaleString();
+  $("#sigAccepted").textContent = (st.accepted_total||0).toLocaleString();
   $("#cycles").textContent = st.cycles;
   $("#ntrades").textContent = st.accepted_total;
   const p = $("#pnl"); p.textContent = fmtUsd(st.realized_pnl);
@@ -107,6 +110,8 @@ function renderWallets(wallets){
 function renderStates(states){
   const order=["ENTER_SIM","SKIP_NEGATIVE","SKIP_CROSSED","SKIP_THIN","SKIP_STALE","SKIP_INVENTORY"];
   const keys = Object.keys(states||{}).sort((a,b)=>order.indexOf(a)-order.indexOf(b));
+  const rejected = Object.entries(states||{}).reduce((n,[k,v])=>n+(k==="ENTER_SIM"?0:v),0);
+  $("#sigRejected").textContent = rejected.toLocaleString();
   $("#states").innerHTML = keys.map(k=>`
     <div class="wal"><span><span class="st ${k}">${k.replace('SKIP_','')}</span></span>
     <span class="v">${states[k].toLocaleString()}</span></div>`).join("") || "<span class=dim>warming up...</span>";
