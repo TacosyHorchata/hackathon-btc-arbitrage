@@ -28,7 +28,9 @@ import sqlite3
 import threading
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from decimal import Decimal, getcontext, ROUND_DOWN
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -56,17 +58,18 @@ CONFIG = {
         "binance": Decimal("10"),
         "bybit":   Decimal("10"),
         "okx":     Decimal("10"),
-        "coinbase": Decimal("60"),
+        "coinbase": Decimal("120"),
         "kraken":  Decimal("40"),
-        "gemini":  Decimal("35"),
+        "gemini":  Decimal("120"),
         "bitfinex": Decimal("20"),
     },
     "latency_bps": Decimal("2"),     # haircut for slippage/latency between legs
+    "rebalance_bps": Decimal("1"),   # withdrawal/rebalance reserve for sustainability
     "min_net_bps": Decimal("1"),     # minimum net edge to accept a trade
     "min_notional": Decimal("100"),  # smallest executable notional (quote units)
     "max_notional": Decimal("5000"), # cap per trade (depth-walked up to this)
     "stale_ms": 4000,                # reject books older than this
-    "cycle_sec": 6,                  # scan interval
+    "cycle_sec": 3,                  # scan interval
     # scenario: "live"   = real books + real fees (honest; BTC arb is ~0 net)
     #           "zerofee" = real books, all taker fees forced to 0 (maker/zero-fee
     #                       venues like Bitfinex) to show raw dislocations
@@ -93,6 +96,7 @@ VENUES = {
     "bybit":    ("USDT", "fetch_bybit"),
     "okx":      ("USDT", "fetch_okx"),
 }
+MAX_FETCH_WORKERS = min(8, len(VENUES))
 
 UA = {"User-Agent": "arb-sim/1.0 (coding-challenge-mexico)"}
 
@@ -215,6 +219,21 @@ def walk_sell(bids, base_amt: Decimal):
     return sold, recv, (recv / sold if sold > 0 else D0), False
 
 
+def walk_buy_base(asks, base_amt: Decimal):
+    """Buy an exact base amount. Returns (base, spent, vwap, filled_full)."""
+    remaining = base_amt
+    spent = D0
+    base = D0
+    for price, size in asks:
+        if remaining <= 0:
+            break
+        take = min(size, remaining)
+        spent += take * price
+        base += take
+        remaining -= take
+    return base, spent, (spent / base if base > 0 else D0), remaining <= 0
+
+
 # ---------------------------------------------------------------------------
 # Wallet accounting (per venue inventory). Never goes negative.
 # ---------------------------------------------------------------------------
@@ -271,6 +290,7 @@ class Engine:
         self.started = time.time()
         self.opp_id = 0
         self.trade_id = 0
+        self.last_scan_ms = 0
         self.lock = threading.Lock()
         self._init_db()
 
@@ -334,41 +354,67 @@ class Engine:
             fee_b = cfg["taker_fee_bps"][buy_v] / Decimal(10000)
             fee_s = cfg["taker_fee_bps"][sell_v] / Decimal(10000)
         lat = cfg["latency_bps"] / Decimal(10000)
+        rebalance = cfg["rebalance_bps"] / Decimal(10000)
 
-        # depth-walk: find the largest bucket that stays net-positive
+        # Depth-walk: find the largest executable size that stays net-positive.
+        # If the requested bucket outruns one side of the book, evaluate the
+        # partial fill that can execute symmetrically on both legs.
         best = None
         for notional in BUCKETS:
             if notional > cfg["max_notional"]:
                 break
+            bucket_status = "ok"
             base, spent, buy_vwap, full_b = walk_buy(asks, notional)
-            if not full_b or base <= 0:
+            if base <= 0:
                 ev["buckets"].append({"notional": float(notional), "status": "thin_buy"})
                 break
+            if not full_b:
+                if spent < cfg["min_notional"]:
+                    ev["buckets"].append({"notional": float(notional), "status": "thin_buy"})
+                    break
+                bucket_status = "partial_buy"
             sold, recv, sell_vwap, full_s = walk_sell(bids, base)
             if not full_s:
-                ev["buckets"].append({"notional": float(notional), "status": "thin_sell"})
+                if sold <= 0:
+                    ev["buckets"].append({"notional": float(notional), "status": "thin_sell"})
+                    break
+                base, spent, buy_vwap, full_exact_buy = walk_buy_base(asks, sold)
+                if not full_exact_buy or spent < cfg["min_notional"]:
+                    ev["buckets"].append({"notional": float(notional), "status": "thin_sell"})
+                    break
+                bucket_status = "partial_sell"
+            if spent < cfg["min_notional"]:
+                ev["buckets"].append({"notional": float(notional), "status": "below_min_notional"})
                 break
-            buy_cost = spent * (Decimal(1) + fee_b)
-            sell_value = recv * (Decimal(1) - fee_s)
+            buy_fee = spent * fee_b
+            sell_fee = recv * fee_s
             haircut = spent * lat
-            net_profit = sell_value - buy_cost - haircut
+            rebalance_cost = spent * rebalance
+            buy_debit = spent + buy_fee + haircut + rebalance_cost
+            sell_credit = recv - sell_fee
+            net_profit = sell_credit - buy_debit
             gross_bps = (sell_vwap - buy_vwap) / buy_vwap * Decimal(10000)
-            net_bps = net_profit / buy_cost * Decimal(10000)
-            fees = spent * fee_b + recv * fee_s
+            net_bps = net_profit / buy_debit * Decimal(10000)
+            fees = buy_fee + sell_fee
             row = {"notional": float(notional), "base": float(base),
+                   "executable_notional": float(spent),
                    "buy_vwap": float(buy_vwap), "sell_vwap": float(sell_vwap),
                    "gross_bps": float(gross_bps), "net_bps": float(net_bps),
-                   "net_profit": float(net_profit), "status": "ok"}
+                   "net_profit": float(net_profit), "fees": float(fees),
+                   "buy_debit": float(buy_debit), "sell_credit": float(sell_credit),
+                   "latency": float(haircut), "rebalance": float(rebalance_cost),
+                   "status": bucket_status}
             ev["buckets"].append(row)
             if net_bps >= cfg["min_net_bps"] and net_profit > 0:
-                best = (notional, base, spent, buy_vwap, sell_vwap, recv,
-                        gross_bps, net_bps, net_profit, fees + haircut)
+                best = (spent, base, buy_vwap, sell_vwap, recv,
+                        gross_bps, net_bps, net_profit, fees + haircut + rebalance_cost,
+                        buy_debit, sell_credit)
             else:
                 # once a bucket goes negative, bigger ones will too (depth eats edge)
                 if best is None:
                     return self._mk(lane, buy_v, sell_v, now_ms, "SKIP_NEGATIVE",
-                                    f"net {float(net_bps):.2f} bps below min after fees+latency",
-                                    ev, float(notional), 0, buy_vwap, sell_vwap,
+                                    f"net {float(net_bps):.2f} bps below min after fees+latency+rebalance",
+                                    ev, float(spent), float(base), buy_vwap, sell_vwap,
                                     gross_bps, net_bps, net_profit)
                 break
 
@@ -376,25 +422,25 @@ class Engine:
             return self._mk(lane, buy_v, sell_v, now_ms, "SKIP_THIN",
                             "no executable size", ev, 0, 0, best_ask, best_bid, D0, D0, D0)
 
-        (notional, base, spent, buy_vwap, sell_vwap, recv,
-         gross_bps, net_bps, net_profit, total_cost) = best
+        (spent, base, buy_vwap, sell_vwap, recv,
+         gross_bps, net_bps, net_profit, total_cost, buy_debit, sell_credit) = best
 
         # inventory / wallet caps
         with self.wallets.lock:
-            ok = self.wallets.can_execute(buy_v, sell_v, spent, base)
+            ok = self.wallets.can_execute(buy_v, sell_v, buy_debit, base)
         if not ok:
             return self._mk(lane, buy_v, sell_v, now_ms, "SKIP_INVENTORY",
                             "insufficient prefunded inventory on a leg (rebalance needed)",
-                            ev, float(notional), float(base), buy_vwap, sell_vwap,
+                            ev, float(spent), float(base), buy_vwap, sell_vwap,
                             gross_bps, net_bps, net_profit)
 
         # ENTER_SIM: simulate the paired fill
-        self.wallets.apply(buy_v, sell_v, spent, base, recv)
-        reason = "net-positive after depth, fees, latency; within caps"
+        self.wallets.apply(buy_v, sell_v, buy_debit, base, sell_credit)
+        reason = "net-positive after depth, fees, latency, rebalance reserve; within caps"
         if injected:
             reason = "[STRESS: injected dislocation] " + reason
         opp = self._mk(lane, buy_v, sell_v, now_ms, "ENTER_SIM", reason,
-                       ev, float(notional), float(base), buy_vwap, sell_vwap,
+                       ev, float(spent), float(base), buy_vwap, sell_vwap,
                        gross_bps, net_bps, net_profit, injected)
         self._record_trade(opp, total_cost)
         return opp
@@ -453,19 +499,45 @@ class Engine:
 
     # ---- one full scan cycle -----------------------------------------------
     def scan_once(self):
-        now_ms = int(time.time() * 1000)
-        # fetch all books (best-effort per venue)
-        for v, (lane, fn) in VENUES.items():
+        started = time.perf_counter()
+
+        def fetch_venue(v, fn):
+            fetch_started = time.perf_counter()
             try:
                 book = ADAPTERS[fn]()
                 if not book["bids"] or not book["asks"]:
                     raise ValueError("empty book")
-                self.books[v] = {"book": book, "ts_ms": now_ms, "online": True, "err": None}
+                return v, book, None, int((time.perf_counter() - fetch_started) * 1000)
             except Exception as e:
-                prev = self.books.get(v, {})
-                self.books[v] = {"book": prev.get("book", {"bids": [], "asks": []}),
-                                 "ts_ms": prev.get("ts_ms", 0), "online": False,
-                                 "err": str(e)[:120]}
+                return v, None, str(e)[:120], int((time.perf_counter() - fetch_started) * 1000)
+
+        # Fetch all public books concurrently. The slowest venue now sets the
+        # cycle latency instead of the sum of all venue latencies.
+        fetched_books = {}
+        with ThreadPoolExecutor(max_workers=MAX_FETCH_WORKERS) as pool:
+            futures = [
+                pool.submit(fetch_venue, v, fn)
+                for v, (_, fn) in VENUES.items()
+            ]
+            for future in as_completed(futures):
+                v, book, err, fetch_ms = future.result()
+                ts_ms = int(time.time() * 1000)
+                if err is None:
+                    fetched_books[v] = {
+                        "book": book, "ts_ms": ts_ms, "online": True,
+                        "err": None, "fetch_ms": fetch_ms,
+                    }
+                else:
+                    prev = self.books.get(v, {})
+                    fetched_books[v] = {
+                        "book": prev.get("book", {"bids": [], "asks": []}),
+                        "ts_ms": prev.get("ts_ms", 0), "online": False,
+                        "err": err, "fetch_ms": fetch_ms,
+                    }
+        self.books = {**self.books, **fetched_books}
+
+        now_ms = int(time.time() * 1000)
+        self.last_scan_ms = int((time.perf_counter() - started) * 1000)
 
         mids = {}
         for v, st in self.books.items():
@@ -474,6 +546,7 @@ class Engine:
                 mids[v] = (bk["bids"][0][0] + bk["asks"][0][0]) / 2
 
         new_opps = []
+        routes = []
         for lane in ("USD", "USDT"):
             online = [v for v, (l, _) in VENUES.items()
                       if l == lane and self.books.get(v, {}).get("online")]
@@ -481,12 +554,25 @@ class Engine:
                 for b in online:
                     if a == b:
                         continue
-                    try:
-                        o = self.eval_route(lane, a, b, now_ms)
-                    except Exception as e:
-                        continue
-                    new_opps.append(o)
-                    self._persist_opp(o)
+                    asks = self.books[a]["book"]["asks"]
+                    bids = self.books[b]["book"]["bids"]
+                    gross = ((bids[0][0] - asks[0][0]) / asks[0][0]
+                             if asks and bids else Decimal("-999"))
+                    routes.append((gross, lane, a, b))
+
+        used_venues = set()
+        for _, lane, a, b in sorted(routes, key=lambda r: r[0], reverse=True):
+            if a in used_venues or b in used_venues:
+                continue
+            try:
+                o = self.eval_route(lane, a, b, now_ms)
+            except Exception as e:
+                print(f"route error {a}->{b}: {e}")
+                continue
+            new_opps.append(o)
+            self._persist_opp(o)
+            if o["state"] == "ENTER_SIM":
+                used_venues.update((a, b))
 
         with self.lock:
             self.cycles += 1
@@ -529,6 +615,7 @@ class Engine:
                 "bid": bid, "ask": ask,
                 "spread_bps": (round((ask - bid) / bid * 10000, 2) if bid and ask else None),
                 "age_ms": (now_ms - st.get("ts_ms", now_ms)) if st.get("ts_ms") else None,
+                "fetch_ms": st.get("fetch_ms"),
                 "err": st.get("err"),
             })
         accepted = [o for o in self.opps if o["state"] == "ENTER_SIM"]
@@ -548,6 +635,7 @@ class Engine:
             "realized_pnl": float(self.realized),
             "equity": cur_eq,
             "start_equity": start_eq,
+            "scan_ms": self.last_scan_ms,
             "config": _config_public(),
         }
 
@@ -556,6 +644,7 @@ def _config_public():
     return {
         "taker_fee_bps": {k: float(v) for k, v in CONFIG["taker_fee_bps"].items()},
         "latency_bps": float(CONFIG["latency_bps"]),
+        "rebalance_bps": float(CONFIG["rebalance_bps"]),
         "min_net_bps": float(CONFIG["min_net_bps"]),
         "min_notional": float(CONFIG["min_notional"]),
         "max_notional": float(CONFIG["max_notional"]),
@@ -610,7 +699,10 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(ENGINE.state())
         if p == "/api/opportunities":
             qs = _qs(self.path)
-            limit = int(qs.get("limit", "120"))
+            try:
+                limit = max(1, min(500, int(qs.get("limit", "120"))))
+            except ValueError:
+                limit = 120
             state = qs.get("state")
             opps = ENGINE.opps
             if state:
@@ -630,7 +722,10 @@ class Handler(BaseHTTPRequestHandler):
                     mids[v] = (bk["bids"][0][0] + bk["asks"][0][0]) / 2
             return self._json({"wallets": ENGINE.wallets.snapshot(mids)})
         if p.startswith("/api/decision/"):
-            oid = int(p.rsplit("/", 1)[1])
+            try:
+                oid = int(p.rsplit("/", 1)[1])
+            except ValueError:
+                return self._json({"error": "invalid decision id"}, 400)
             for o in ENGINE.opps:
                 if o["id"] == oid:
                     return self._json(o)
@@ -650,8 +745,15 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if self.path == "/api/config":
             n = int(self.headers.get("Content-Length", 0))
-            body = json.loads(self.rfile.read(n) or b"{}")
-            _apply_config(body)
+            try:
+                body = json.loads(self.rfile.read(n) or b"{}")
+            except json.JSONDecodeError:
+                return self._json({"ok": False, "error": "invalid json"}, 400)
+            if not isinstance(body, dict):
+                return self._json({"ok": False, "error": "json body must be an object"}, 400)
+            errors = _apply_config(body)
+            if errors:
+                return self._json({"ok": False, "errors": errors, "config": _config_public()}, 400)
             return self._json({"ok": True, "config": _config_public()})
         return self._json({"error": "not found"}, 404)
 
@@ -659,24 +761,65 @@ class Handler(BaseHTTPRequestHandler):
 def _qs(path):
     if "?" not in path:
         return {}
-    return dict(kv.split("=", 1) for kv in path.split("?", 1)[1].split("&") if "=" in kv)
+    return dict(urllib.parse.parse_qsl(path.split("?", 1)[1], keep_blank_values=True))
+
+
+def _decimal_field(body, key, lo, hi, errors):
+    if key not in body:
+        return None
+    try:
+        value = Decimal(str(body[key]))
+    except Exception:
+        errors.append(f"{key} must be numeric")
+        return None
+    if value < Decimal(str(lo)) or value > Decimal(str(hi)):
+        errors.append(f"{key} must be between {lo} and {hi}")
+        return None
+    return value
 
 
 def _apply_config(body):
-    if "latency_bps" in body:
-        CONFIG["latency_bps"] = Decimal(str(body["latency_bps"]))
-    if "min_net_bps" in body:
-        CONFIG["min_net_bps"] = Decimal(str(body["min_net_bps"]))
-    if "max_notional" in body:
-        CONFIG["max_notional"] = Decimal(str(body["max_notional"]))
+    errors = []
+    updates = {}
+    for key, lo, hi in (
+        ("latency_bps", 0, 100),
+        ("rebalance_bps", 0, 100),
+        ("min_net_bps", 0, 100),
+        ("max_notional", 100, 50000),
+        ("stress_bps", 0, 100),
+    ):
+        value = _decimal_field(body, key, lo, hi, errors)
+        if value is not None:
+            updates[key] = value
+    fee_updates = {}
     if "taker_fee_bps" in body and isinstance(body["taker_fee_bps"], dict):
         for k, v in body["taker_fee_bps"].items():
             if k in CONFIG["taker_fee_bps"]:
-                CONFIG["taker_fee_bps"][k] = Decimal(str(v))
+                try:
+                    fee = Decimal(str(v))
+                except Exception:
+                    errors.append(f"fee for {k} must be numeric")
+                    continue
+                if fee < 0 or fee > 200:
+                    errors.append(f"fee for {k} must be between 0 and 200 bps")
+                    continue
+                fee_updates[k] = fee
+            else:
+                errors.append(f"unknown venue fee key: {k}")
+    elif "taker_fee_bps" in body:
+        errors.append("taker_fee_bps must be an object")
+    scenario = body.get("scenario")
+    if scenario is not None and scenario not in ("live", "zerofee", "stress"):
+        errors.append("scenario must be live, zerofee, or stress")
+    if errors:
+        return errors
+    for key, value in updates.items():
+        CONFIG[key] = value
+    for k, fee in fee_updates.items():
+        CONFIG["taker_fee_bps"][k] = fee
     if body.get("scenario") in ("live", "zerofee", "stress"):
         CONFIG["scenario"] = body["scenario"]
-    if "stress_bps" in body:
-        CONFIG["stress_bps"] = Decimal(str(body["stress_bps"]))
+    return []
 
 
 def _summary():

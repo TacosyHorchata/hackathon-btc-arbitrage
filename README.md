@@ -1,58 +1,147 @@
-# BTC Arbitrage Simulator
+# BTC Arbitrage Bot Simulator
 
-Live app: https://hackathon-btc-arb.fly.dev
-Source deliverable: [`app/`](app/README.md)
+Repositorio para el **Coding Challenge Mexico: Arbitraje de Bitcoin**. La app
+monitorea order books publicos de BTC en multiples exchanges, detecta rutas
+ask < bid, calcula rentabilidad neta con costos reales, simula ejecucion
+buy/sell, actualiza wallets prefundeadas y muestra P&L en una web app.
 
-This is a full-stack simulator for the Coding Challenge Mexico arbitrage prompt.
-It monitors real public BTC order books, evaluates cross-exchange routes, and
-simulates paired buy/sell execution only when the route survives realistic costs.
+La tesis tecnica es simple: **el bot que gana no imprime P&L falso**. La mayoria
+de los spreads visibles mueren al incluir profundidad, fees, latencia,
+rebalance/retiro, stale books e inventario. Este sistema los rechaza con
+evidencia y solo simula fills cuando sobreviven todos los filtros.
 
-The core idea: **most visible arbitrage is fake once you include depth, fees,
-latency, stale books, and inventory. This engine rejects those trades explicitly
-instead of printing fake P&L.**
+## Live Demo
+
+Demo publica para el jurado: **https://hackathon-btc-arb.fly.dev**
 
 ## Judge In 60 Seconds
 
-1. Open the live app.
-2. Stay in `LIVE`: see real order books and rejected routes.
-3. Click any rejected opportunity: inspect the depth waterfall and net bps.
-4. Switch to `STRESS`: a clearly labeled simulated dislocation proves the full
-   execution path, wallet drift, and P&L accounting.
-5. Switch back to `LIVE`: the real mode stays honest.
+1. Abre https://hackathon-btc-arb.fly.dev.
+2. Deja el modo `LIVE`: veras order books reales, rutas evaluadas y rechazos
+   explicados. Esto es intencional; BTC liquido rara vez sobrevive costos.
+3. Haz click en cualquier ruta: el inspector muestra waterfall por profundidad,
+   VWAP, fees, latencia, reserva de rebalance/retiro, net bps y decision.
+4. Cambia a `STRESS`: la app etiqueta una dislocacion simulada y demuestra la
+   ruta completa de ejecucion, drift de wallets y P&L.
+5. Regresa a `LIVE`: el motor vuelve a operar con libros y costos reales.
 
-## What Wins
+## Por Que Esta Solucion Compite Para Ganar
 
-- Real public market data, no API keys.
-- Depth-aware VWAP instead of top-of-book fantasy.
-- Per-exchange taker fees before profit.
-- Latency haircut before profit.
-- USD and USDT lanes are not mixed.
-- Stale/crossed/thin books are rejected.
-- Wallet inventory is enforced per venue.
-- Every accept/reject has an inspectable reason.
-- Simulated scenarios are clearly labeled.
+- **Real market data**: 7 venues publicos: Coinbase, Kraken, Gemini, Bitfinex,
+  Binance, Bybit y OKX.
+- **Deteccion eficiente**: polling REST concurrente cada 3s en la web app; el
+  scanner Rust incluido soporta feeds WebSocket/event-driven para hot path.
+- **Calculo neto serio**: depth-aware VWAP, taker fees por exchange, slippage
+  por profundidad, latency haircut, reserva de rebalance/retiro y min edge.
+- **No mezcla USD con USDT**: las rutas solo comparan venues dentro de la misma
+  lane. No hay arbitraje falso por basis entre activos distintos.
+- **Parciales e inventario**: si el bucket completo no cabe, evalua el fill
+  parcial simetrico; cada venue tiene wallet propia y nunca puede ir negativa.
+- **Risk controls**: stale-book rejection, max notional, min notional, min net
+  bps, route prioritization, one accepted route per venue per cycle, inventory
+  caps y configuracion validada.
+- **Trazabilidad**: cada aceptacion/rechazo tiene razon e evidencia inspeccionable.
+- **Presentacion**: dashboard en vivo con feeds, rutas, decisiones, trades,
+  wallets, equity y realized P&L.
 
-## Web App
+## Challenge Requirements -> Implementacion
+
+| Requisito | Implementacion |
+|---|---|
+| Monitoreo real-time de order books BTC | `app/server.py` fetch concurrente, 7 venues, ciclo 3s; `src/` incluye scanner Rust WebSocket |
+| Deteccion ask < bid | `Engine.eval_route()` evalua cada ruta dirigida dentro de la misma quote lane |
+| Rentabilidad neta | VWAP de libro, taker fees, latency haircut, reserva rebalance/retiro, min edge |
+| Ejecucion simulada | `Wallets.apply()` actualiza buy/sell venues; `Engine._record_trade()` registra fills |
+| Costos reales | Fees por venue, slippage por profundidad, latencia y costo configurable de rebalance/retiro |
+| Ordenes parciales | Si no cabe el bucket, recalcula el tamano simetrico ejecutable antes de rechazar |
+| Wallet balances | Quote/base por venue, prefunded inventory, guard invariant contra saldos negativos |
+| Historial y P&L | SQLite + buffers in-memory, `/api/opportunities`, `/api/trades`, `/api/pnl` |
+| Web app desplegada | Fly.io app publica, frontend vanilla sin build step |
+| README / decisiones tecnicas | Este README + `app/README.md` + `docs/` |
+
+## Architecture
+
+```text
+Browser dashboard
+  app/static/index.html
+  app/static/app.js
+  app/static/styles.css
+        |
+        | HTTP/JSON
+        v
+Python stdlib backend
+  ThreadingHTTPServer
+  concurrent REST fetcher
+  arbitrage engine
+  wallet ledger
+  SQLite history
+        |
+        | public market APIs
+        v
+Coinbase / Kraken / Gemini / Bitfinex / Binance / Bybit / OKX
+```
+
+El repo tambien incluye un scanner Rust (`src/`) para el hot path de mercado:
+WebSockets, libros normalizados, fixed-point math, fees por exchange y pruebas
+unitarias del motor.
+
+## Net Profit Formula
+
+```text
+buy_fee       = buy_notional * buy_taker_fee_bps / 10000
+sell_fee      = sell_notional * sell_taker_fee_bps / 10000
+latency_cost  = buy_notional * latency_bps / 10000
+rebalance_res = buy_notional * rebalance_bps / 10000
+
+buy_debit     = buy_notional + buy_fee + latency_cost + rebalance_res
+sell_credit   = sell_notional - sell_fee
+net_profit    = sell_credit - buy_debit
+net_bps       = net_profit / buy_debit * 10000
+```
+
+`buy_notional` y `sell_notional` salen de caminar el L2 order book, no del
+top-of-book. A mayor tamano, el VWAP empeora y el edge se comprime.
+
+## Execution Modes
+
+- `LIVE`: libros reales + fees reales + costos. Modo honesto.
+- `ZERO-FEE`: libros reales con taker fees en cero para sensibilidad de edge.
+- `STRESS`: libros reales + dislocacion sell-side simulada y etiquetada. Sirve
+  para demostrar ejecucion, wallet drift y P&L sin fingir que el mercado real
+  regalo ese edge.
+
+## Run Locally
 
 ```bash
 python3 app/server.py
 # open http://localhost:8080
+
+PORT=9000 python3 app/server.py
 ```
 
-No install step. Backend is Python stdlib. Frontend is static HTML/CSS/JS.
+No requiere `pip install`: backend Python stdlib, frontend estatico.
 
-Deploy targets included:
+## Rust Scanner
 
-- `Dockerfile`
-- `fly.toml`
-- `render.yaml`
-- `Procfile`
+```bash
+cargo run
+cargo test
+```
+
+Scope actual:
+
+- BTC/ETH/SOL en venues USD donde aplica.
+- BTC/ETH/SOL/XRP/DOGE/LTC en venues USDT.
+- Fixed-point money math.
+- VWAP por profundidad.
+- Fee schedules por exchange.
+- Event-driven route scanning.
 
 ## API
 
 ```text
 GET  /api/state
-GET  /api/opportunities
+GET  /api/opportunities?limit=150
 GET  /api/trades
 GET  /api/pnl
 GET  /api/wallets
@@ -61,89 +150,33 @@ GET  /api/summary
 POST /api/config
 ```
 
-## Engine Logic
+`POST /api/config` esta validado con rangos conservadores para evitar demos con
+fees negativos o parametros absurdos.
 
-For each directed route:
-
-```text
-buy_cost   = spent * (1 + taker_fee_buy)
-sell_value = recv  * (1 - taker_fee_sell)
-haircut    = spent * latency_bps
-net_profit = sell_value - buy_cost - haircut
-net_bps    = net_profit / buy_cost * 10000
-```
-
-`spent` and `recv` come from walking the real L2 order book through increasing
-notional buckets. Larger orders pay deeper levels. If the book cannot fill the
-bucket, the route is rejected as thin.
-
-Decision states:
-
-- `ENTER_SIM`: net-positive after depth, fees, latency, and inventory checks.
-- `SKIP_NEGATIVE`: raw edge exists but dies after real costs.
-- `SKIP_CROSSED`: buy ask is not below sell bid.
-- `SKIP_THIN`: insufficient depth.
-- `SKIP_STALE`: book is too old.
-- `SKIP_INVENTORY`: prefunded wallet cannot execute both legs.
-
-## Scenarios
-
-- `LIVE`: real books, real fees, honest result.
-- `ZERO-FEE`: real books with taker fees forced to zero for sensitivity testing.
-- `STRESS`: real books plus a labeled simulated sell-side dislocation to show
-  execution, realized P&L, and inventory drift.
-
-## Venues
-
-USD lane:
-
-- Coinbase
-- Kraken
-- Gemini
-- Bitfinex
-
-USDT lane:
-
-- Binance
-- Bybit
-- OKX
-
-Some datacenters geo-block Binance or Bybit. The app degrades gracefully and
-continues with the reachable venues.
-
-## Rust Scanner
-
-The repo also includes a Rust public-market scanner with WebSocket feeds and
-multi-pair support.
+## Tests / Verification
 
 ```bash
-cargo run
+python3 -m py_compile app/server.py
+python3 -m unittest tests/test_app_server.py
 cargo test
 ```
 
-Current scanner scope:
+Las pruebas Python cubren validacion de config y fills parciales del deliverable
+web. Las pruebas Rust cubren parsing fixed-point, normalizacion de libros, VWAP
+por profundidad, crossed books, lanes USD/USDT y fee math.
 
-- BTC, ETH, SOL where supported on USD venues.
-- BTC, ETH, SOL, XRP, DOGE, LTC on USDT venues.
-- Event-driven affected-route scanning.
-- Fixed-point money math.
-- Depth-aware VWAP.
-- Fee and latency buffers.
+## Assumptions
 
-## Why This Is Honest
+- La web app usa polling REST concurrente porque todos los venues exponen APIs
+  publicas sin API keys. El scanner Rust muestra el camino WebSocket/event-driven.
+- La ejecucion es simulada; no envia ordenes reales ni requiere credenciales.
+- El arbitraje hot path usa inventario prefundeado; la reserva de
+  rebalance/retiro modela el costo de sostener la estrategia despues del fill.
+- Si un datacenter bloquea Binance/Bybit, el sistema degrada y opera con los
+  venues alcanzables.
 
-The project started by probing broad public markets across many exchanges. The
-pattern was clear: giant apparent spreads often come from tiny depth, blocked
-venues, ticker collisions, stale books, or assets that are hard to move.
+## Core Engineering Decision
 
-So the deliverable optimizes for the thing a real arbitrage system needs first:
-**refusing bad trades with evidence.**
-
-## Files
-
-- [`app/server.py`](app/server.py): simulator backend, engine, API.
-- [`app/static/app.js`](app/static/app.js): dashboard behavior.
-- [`app/static/index.html`](app/static/index.html): dashboard layout.
-- [`app/static/styles.css`](app/static/styles.css): dashboard styling.
-- [`docs/`](docs/): research notes, engine specs, rejected approaches.
-- [`src/`](src/): Rust scanner.
+Un bot promedio detecta spreads brutos. Un bot serio decide **no operar** cuando
+el edge es falso. Esta app esta disenada para mostrar esa disciplina con numeros
+auditables por el jurado.

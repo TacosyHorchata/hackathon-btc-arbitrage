@@ -30,7 +30,7 @@ async function tick(){
     renderStates(summary.decision_states);
     drawPnl(pnl.series, st);
     syncScenario(st.config.scenario);
-  }catch(e){ /* transient */ }
+    }catch(e){ console.warn("refresh failed", e); }
 }
 
 function renderHeader(st){
@@ -40,12 +40,13 @@ function renderHeader(st){
   $("#sigAccepted").textContent = (st.accepted_total||0).toLocaleString();
   $("#cycles").textContent = st.cycles;
   $("#ntrades").textContent = st.accepted_total;
-  const p = $("#pnl"); p.textContent = fmtUsd(st.realized_pnl);
+  const p = $("#pnlStat"); p.textContent = fmtUsd(st.realized_pnl);
   p.className = "v num "+cls(st.realized_pnl);
   $("#equity").textContent = fmtUsd(st.equity);
   $("#realized").textContent = fmtUsd(st.realized_pnl);
   $("#realized").className = "v num "+cls(st.realized_pnl);
   const u = st.uptime_s; $("#uptime").textContent = (u>=3600? Math.floor(u/3600)+"h ":"")+Math.floor(u%3600/60)+"m "+(u%60)+"s";
+  if($("#scanMs")) $("#scanMs").textContent = st.scan_ms ? st.scan_ms+"ms" : "-";
 }
 
 function syncScenario(s){
@@ -151,10 +152,12 @@ window.inspect = async function(id){
   const ev = o.evidence||{buckets:[]};
   const buckets = (ev.buckets||[]).map(b=>`
     <tr><td class="num">${fmtN(b.notional,0)}</td>
+      <td class="num">${b.executable_notional?fmtN(b.executable_notional,0):'-'}</td>
       <td class="num">${b.buy_vwap?fmtN(b.buy_vwap,1):'-'}</td>
       <td class="num">${b.sell_vwap?fmtN(b.sell_vwap,1):'-'}</td>
       <td class="num ${cls(b.gross_bps)}">${b.gross_bps!=null?b.gross_bps.toFixed(1):'-'}</td>
       <td class="num ${cls(b.net_bps)}">${b.net_bps!=null?b.net_bps.toFixed(1):'-'}</td>
+      <td class="num dim">${b.fees!=null?fmtUsd((b.fees||0)+(b.latency||0)+(b.rebalance||0)):'-'}</td>
       <td class="dim">${b.status}</td></tr>`).join("");
   $("#drawerBody").innerHTML = `
     <h3>${o.buy_venue||''} &rarr; ${o.sell_venue||''} <span class="st ${o.state}">${o.state}</span></h3>
@@ -162,12 +165,13 @@ window.inspect = async function(id){
     ${o.net_bps!=null?`
     <div class="kv"><span class="k">Lane</span><span class="num">${o.lane}</span></div>
     <div class="kv"><span class="k">Gross edge</span><span class="num">${(o.gross_bps||0).toFixed(2)} bps</span></div>
-    <div class="kv"><span class="k">Net after fees+latency</span><span class="num ${cls(o.net_bps)}">${(o.net_bps||0).toFixed(2)} bps</span></div>
+    <div class="kv"><span class="k">Net after all costs</span><span class="num ${cls(o.net_bps)}">${(o.net_bps||0).toFixed(2)} bps</span></div>
+    <div class="kv"><span class="k">Rebalance reserve</span><span class="num">${cfg.rebalance_bps} bps</span></div>
     <div class="kv"><span class="k">Net profit</span><span class="num ${cls(o.net_profit)}">${fmtUsd(o.net_profit||0)}</span></div>
     <div class="kv"><span class="k">Executable size</span><span class="num">${fmtUsd(o.notional||0)} (${fmtN(o.base_size,5)} BTC)</span></div>`:''}
     <h2 style="margin:16px 0 8px">Depth Waterfall</h2>
-    <table class="waterfall"><thead><tr><th>Notional</th><th>Buy VWAP</th><th>Sell VWAP</th><th>Gross</th><th>Net</th><th>Status</th></tr></thead>
-    <tbody>${buckets||'<tr><td colspan=6 class=dim>no depth walk (rejected earlier)</td></tr>'}</tbody></table>
+    <table class="waterfall"><thead><tr><th>Target</th><th>Exec</th><th>Buy VWAP</th><th>Sell VWAP</th><th>Gross</th><th>Net</th><th>Costs</th><th>Status</th></tr></thead>
+    <tbody>${buckets||'<tr><td colspan=8 class=dim>no depth walk (rejected earlier)</td></tr>'}</tbody></table>
     <p class="note">The engine walks increasing size through the real book. Net bps shrinks as larger orders eat deeper levels &mdash; depth-aware VWAP, not top-of-book.</p>`;
   openDrawer("#drawer");
 }
@@ -182,6 +186,7 @@ $("#gear").onclick = ()=>{
   const fees = cfg.taker_fee_bps;
   $("#cfgBody").innerHTML =
     `<div class="cfgrow"><label>Latency haircut (bps)</label><input id="c_lat" value="${cfg.latency_bps}"></div>
+     <div class="cfgrow"><label>Rebalance / withdrawal reserve (bps)</label><input id="c_reb" value="${cfg.rebalance_bps}"></div>
      <div class="cfgrow"><label>Min net edge (bps)</label><input id="c_min" value="${cfg.min_net_bps}"></div>
      <div class="cfgrow"><label>Max notional ($)</label><input id="c_max" value="${cfg.max_notional}"></div>
      <h2 style="margin:14px 0 6px">Taker fees (bps)</h2>` +
@@ -190,7 +195,7 @@ $("#gear").onclick = ()=>{
 };
 $("#cfgApply").onclick = async ()=>{
   const body = {
-    latency_bps:+$("#c_lat").value, min_net_bps:+$("#c_min").value,
+    latency_bps:+$("#c_lat").value, rebalance_bps:+$("#c_reb").value, min_net_bps:+$("#c_min").value,
     max_notional:+$("#c_max").value, taker_fee_bps:{}
   };
   Object.keys(cfg.taker_fee_bps).forEach(k=>{ const el=$("#fee_"+k); if(el) body.taker_fee_bps[k]=+el.value; });

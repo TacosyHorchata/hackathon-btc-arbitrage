@@ -20,7 +20,7 @@
   <div class="stat"><span class="k">Venues</span><span class="v" id="venues">-/-</span></div>
   <div class="stat"><span class="k">Cycles</span><span class="v" id="cycles">-</span></div>
   <div class="stat"><span class="k">Trades</span><span class="v" id="ntrades">-</span></div>
-  <div class="stat"><span class="k">Realized P&amp;L</span><span class="v num" id="pnl">$0.00</span></div>
+  <div class="stat"><span class="k">Realized P&amp;L</span><span class="v num" id="pnlStat">$0.00</span></div>
   <button class="gear" id="gear" title="Engine config">&#9881; config</button>
 </header>
 
@@ -28,7 +28,7 @@
   <section class="signal">
     <div>
       <h2>Edge filter: reject fake arbitrage before it hits P&amp;L</h2>
-      <p>Real public books, depth-aware VWAP, taker fees, latency haircut, stale-book checks, and inventory caps. Every accept or reject has an inspectable decision trail.</p>
+      <p>Real public books, depth-aware VWAP, taker fees, latency haircut, rebalance reserve, stale-book checks, and inventory caps. Every accept or reject has an inspectable decision trail.</p>
     </div>
     <div class="signalStats">
       <div><span class="k">Live venues</span><span class="v" id="sigVenues">-/-</span></div>
@@ -63,6 +63,7 @@
         <div class="stat"><span class="k">Equity (mark-to-market)</span><span class="v num" id="equity">-</span></div>
         <div class="stat"><span class="k">Realized</span><span class="v num" id="realized">-</span></div>
         <div class="stat"><span class="k">Uptime</span><span class="v num" id="uptime">-</span></div>
+        <div class="stat"><span class="k">Scan</span><span class="v num" id="scanMs">-</span></div>
       </div>
       <canvas id="pnl" width="900" height="160"></canvas>
     </div>
